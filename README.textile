@@ -8,6 +8,9 @@ Here you can find a "djangoappengine bootstrap script":boot to start a fresh
 project like this one but with the newest possible versions of all deps. The
 same script was used to create this sample project.
 
+This project in action:
+"http://djangoadminongae.appspot.com/admin":sampleonline
+
 h2. Author
 
 Rogério Carvalho Schneider <stockrt@gmail.com>
@@ -16,3 +19,4 @@ Rogério Carvalho Schneider <stockrt@gmail.com>
 [app]http://www.allbuttonspressed.com/projects/djangoappengine
 [nonrel]http://www.allbuttonspressed.com/projects/django-nonrel
 [boot]https://github.com/stockrt/djangoappengine_bootstrap
+[sampleonline]http://djangoadminongae.appspot.com/admin
