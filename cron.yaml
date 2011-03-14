@@ -1,0 +1,8 @@
+cron:
+- description: keep alive
+  url: /
+  schedule: every 2 minutes
+
+- description: keep alive admin
+  url: /admin/
+  schedule: every 1 minutes
