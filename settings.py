@@ -20,6 +20,13 @@ INSTALLED_APPS = (
     'djangoappengine',
 )
 
+AUTHENTICATION_BACKENDS = (
+    'permission_backend_nonrel.backends.NonrelPermissionBackend',
+)
+
+#SEARCH_BACKEND = 'search.backends.gae_background_tasks'
+SEARCH_BACKEND = 'search.backends.immediate_update'
+
 MIDDLEWARE_CLASSES = (
     'django.middleware.common.CommonMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -52,10 +59,3 @@ try:
                          MIDDLEWARE_CLASSES
 except ImportError:
     pass
-
-AUTHENTICATION_BACKENDS = (
-    'permission_backend_nonrel.backends.NonrelPermissionBackend',
-)
-
-#SEARCH_BACKEND = 'search.backends.gae_background_tasks'
-SEARCH_BACKEND = 'search.backends.immediate_update'
