@@ -1,3 +1,4 @@
+from datetime import date, time, datetime
 from django.conf import settings
 from django.db.models.fields import NOT_PROVIDED
 from django.db.models.sql import aggregates as sqlaggregates
@@ -164,7 +165,16 @@ class NonrelQuery(object):
                     else:
                         value = value[0]
 
-                submatch = EMULATED_OPS[lookup_type](entity[column], value)
+                if entity[column] is None:
+                    if isinstance(value, (datetime, date, time)):
+                        submatch = lookup_type in ('lt', 'lte')
+                    elif lookup_type in ('startswith', 'contains', 'endswith', 'iexact',
+                                         'istartswith', 'icontains', 'iendswith'):
+                        submatch = False
+                    else:
+                        submatch = EMULATED_OPS[lookup_type](entity[column], value)
+                else:
+                    submatch = EMULATED_OPS[lookup_type](entity[column], value)
 
             if filters.connector == OR and submatch:
                 result = True
@@ -251,7 +261,7 @@ class NonrelCompiler(SQLCompiler):
             if value is NOT_PROVIDED:
                 value = field.get_default()
             if value is None and not field.null:
-                raise DatabaseError("Non-nullable field %s can't be None!" % field.name)
+                raise IntegrityError("Non-nullable field %s can't be None!" % field.name)
             value = self.convert_value_from_db(field.db_type(connection=self.connection), value)
             result.append(value)
         return result
@@ -352,7 +362,7 @@ class NonrelInsertCompiler(object):
         for (field, value), column in zip(self.query.values, self.query.columns):
             if field is not None:
                 if not field.null and value is None:
-                    raise DatabaseError("You can't set %s (a non-nullable "
+                    raise IntegrityError("You can't set %s (a non-nullable "
                                         "field) to None!" % field.name)
                 db_type = field.db_type(connection=self.connection)
                 value = self.convert_value_for_db(db_type, value)

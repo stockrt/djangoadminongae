@@ -1,4 +1,4 @@
-from resolver import resolver
+from .resolver import resolver
 from django.utils.importlib import import_module
 
 def __repr__(self):
@@ -27,10 +27,14 @@ class SQLCompiler(BaseCompiler):
         self.convert_filters()
         return super(SQLCompiler, self).results_iter()
 
+    def has_results(self):
+        self.convert_filters()
+        return super(SQLCompiler, self).has_results()
+
 
 class SQLInsertCompiler(BaseCompiler):
     def execute_sql(self, return_id=False):
-        resolver.convert_query(self.query)
+        resolver.convert_insert_query(self.query)
         return super(SQLInsertCompiler, self).execute_sql(return_id=return_id)
 
 class SQLUpdateCompiler(BaseCompiler):

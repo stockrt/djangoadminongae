@@ -1,8 +1,8 @@
 from django.db import models
 from django.test import TestCase
-from dbindexer.api import register_index
-from dbindexer.lookups import StandardLookup
-from dbindexer.resolver import resolver 
+from .api import register_index
+from .lookups import StandardLookup
+from .resolver import resolver 
 from djangotoolbox.fields import ListField
 from datetime import datetime
 import re
@@ -32,12 +32,10 @@ class TestIndexed(TestCase):
         resolver.backends = []
         resolver.load_backends(('dbindexer.backends.BaseResolver',
                       'dbindexer.backends.FKNullFix',
-                      'dbindexer.backends.InMemoryJOINResolver',
-#                      'dbindexer.backends.ConstantFieldJOINResolver',
+#                      'dbindexer.backends.InMemoryJOINResolver',
+                      'dbindexer.backends.ConstantFieldJOINResolver',
         ))
         self.register_indexex()
-        for backend in resolver.backends:
-            print backend.index_map
         
         juubi = ForeignIndexed2(name_fi2='Juubi', age=2)
         juubi.save()
@@ -68,7 +66,7 @@ class TestIndexed(TestCase):
                      re.compile('^i\d*i$', re.I)),
             'published': ('month', 'day', 'year', 'week_day'),
             'tags': ('iexact', 'icontains', StandardLookup() ),
-        #    'foreignkey': 'iexact',
+            'foreignkey__fk': (StandardLookup()),
             'foreignkey__title': 'iexact',
             'foreignkey__name_fi': 'iexact',
             'foreignkey__fk__name_fi2': ('iexact', 'endswith'),
@@ -168,6 +166,10 @@ class TestIndexed(TestCase):
     
     def test_standard_lookups(self):
         self.assertEqual(1, Indexed.objects.filter(tags__exact='Naruto').count())
+        
+        # test standard lookup on foreign_key
+        juubi = ForeignIndexed2.objects.all().get(name_fi2='Juubi', age=2)
+        self.assertEqual(2, Indexed.objects.filter(foreignkey__fk=juubi).count())
     
     def test_delete(self):
         Indexed.objects.get(name__iexact='itaChi').delete()
@@ -176,6 +178,9 @@ class TestIndexed(TestCase):
     def test_delete_query(self):
         Indexed.objects.all().delete()
         self.assertEqual(0, Indexed.objects.all().filter(name__iexact='itaChi').count())
+
+    def test_exists_query(self):
+        self.assertTrue(Indexed.objects.filter(name__iexact='itaChi').exists())
 
     def test_istartswith(self):
         self.assertEqual(1, len(Indexed.objects.all().filter(name__istartswith='iTa')))

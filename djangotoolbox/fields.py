@@ -56,9 +56,13 @@ class AbstractIterableField(models.Field):
         if issubclass(metaclass, models.SubfieldBase):
             setattr(cls, self.name, _HandleAssignment(self))
 
+    @property
+    def db_type_prefix(self):
+        return self.__class__.__name__
+
     def db_type(self, connection):
         item_db_type = self.item_field.db_type(connection=connection)
-        return '%s:%s' % (self.__class__.__name__, item_db_type)
+        return '%s:%s' % (self.db_type_prefix, item_db_type)
 
     def _convert(self, func, values, *args, **kwargs):
         if isinstance(values, (list, tuple, set)):
@@ -119,6 +123,7 @@ class ListField(AbstractIterableField):
     database.
     """
     _type = list
+    db_type_prefix = 'ListField'
 
     def __init__(self, *args, **kwargs):
         self.ordering = kwargs.pop('ordering', None)
@@ -127,17 +132,20 @@ class ListField(AbstractIterableField):
                             "not of type %r" %  type(self.ordering))
         super(ListField, self).__init__(*args, **kwargs)
 
-    def _convert(self, func, values, *args, **kwargs):
-        values = super(ListField, self)._convert(func, values, *args, **kwargs)
-        if values is not None and self.ordering is not None:
+    def pre_save(self, model_instance, add):
+        values = getattr(model_instance, self.attname)
+        if values is None:
+            return None
+        if values and self.ordering:
             values.sort(key=self.ordering)
-        return values
+        return super(ListField, self).pre_save(model_instance, add)
 
 class SetField(AbstractIterableField):
     """
     Field representing a Python ``set``.
     """
     _type = set
+    db_type_prefix = 'SetField'
 
 class DictField(AbstractIterableField):
     """
@@ -149,6 +157,7 @@ class DictField(AbstractIterableField):
     Depending on the backend, keys that aren't strings might not be allowed.
     """
     _type = dict
+    db_type_prefix = 'DictField'
 
     def _convert(self, func, values, *args, **kwargs):
         if values is None:
@@ -203,8 +212,8 @@ class EmbeddedModelField(models.Field):
     """
     __metaclass__ = models.SubfieldBase
 
-    def __init__(self, embedded_model=None, *args, **kwargs):
-        self.embedded_model = embedded_model
+    def __init__(self, model=None, *args, **kwargs):
+        self.embedded_model = model
         kwargs.setdefault('default', None)
         super(EmbeddedModelField, self).__init__(*args, **kwargs)
 
@@ -236,22 +245,27 @@ class EmbeddedModelField(models.Field):
         embedded_instance = super(EmbeddedModelField, self).pre_save(model_instance, add)
         if embedded_instance is None:
             return None, None
-        if self.embedded_model is not None and \
-                not isinstance(embedded_instance, self.embedded_model):
-            raise TypeError("Expected instance of type %r, not %r"
-                            % (type(self.embedded_model), type(embedded_instance)))
 
-        data = dict((field.name, field.pre_save(embedded_instance, add))
-                    for field in embedded_instance._meta.fields)
-        return embedded_instance, data
+        model = self.embedded_model or models.Model
+        if not isinstance(embedded_instance, model):
+            raise TypeError("Expected instance of type %r, not %r" % (
+                            type(model), type(embedded_instance)))
 
-    def get_db_prep_value(self, (embedded_instance, embedded_dict), **kwargs):
-        if embedded_dict is None:
+        values = []
+        for field in embedded_instance._meta.fields:
+            value = field.pre_save(embedded_instance, add)
+            if field.primary_key and value is None:
+                # exclude unset pks ({"id" : None})
+                continue
+            values.append((field, value))
+
+        return embedded_instance, values
+
+    def get_db_prep_value(self, (embedded_instance, value_list), **kwargs):
+        if value_list is None:
             return None
-        values = {}
-        for name, value in embedded_dict.iteritems():
-            field = embedded_instance._meta.get_field(name)
-            values[field.column] =  field.get_db_prep_value(value, **kwargs)
+        values = dict((field.column, field.get_db_prep_value(value, **kwargs))
+                      for field, value in value_list)
         if self.embedded_model is None:
             values.update({'_module' : embedded_instance.__class__.__module__,
                            '_model'  : embedded_instance.__class__.__name__})
@@ -267,6 +281,11 @@ class EmbeddedModelField(models.Field):
         if not isinstance(values, dict):
             return values
         module, model = values.pop('_module', None), values.pop('_model', None)
+
+        # TODO/XXX: Workaround for old Python releases. Remove this someday.
+        # Let's make sure keys are instances of str
+        values = dict([(str(k), v) for k,v in values.items()])
+
         if module is not None:
             return getattr(import_module(module), model)(**values)
         return self.embedded_model(**values)

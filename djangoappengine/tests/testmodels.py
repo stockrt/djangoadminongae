@@ -4,6 +4,7 @@ from djangotoolbox.fields import BlobField
 
 class EmailModel(models.Model):
     email = models.EmailField()
+    number = models.IntegerField(null=True)
 
 class DateTimeModel(models.Model):
     datetime = models.DateTimeField()
@@ -51,7 +52,7 @@ class FieldsWithOptionsModel(models.Model):
     date = models.DateField(auto_now_add=True)
     time = models.TimeField()
     floating_point = models.FloatField(null=True)
-    boolean = models.BooleanField() # default is False
+    boolean = models.BooleanField()
     null_boolean = models.NullBooleanField(default=True)
     text = models.CharField(default='Hallo', max_length=10)
     email = models.EmailField(default='app-engine@scholardocs.com', primary_key=True)

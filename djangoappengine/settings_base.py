@@ -23,6 +23,19 @@ DATABASES = {
 
         # Switch to the App Engine for Business domain
         # 'DOMAIN': 'googleplex.com',
+
+        'DEV_APPSERVER_OPTIONS': {
+            # Optional parameters for development environment
+
+            # Emulate the high-replication datastore locally
+            # 'high_replication' : True,
+
+            # Use the SQLite backend for local storage (instead of default
+            # in-memory datastore). Useful for testing with larger datasets
+            # or when debugging concurrency/async issues (separate processes
+            # will share a common db state, rather than syncing on startup).
+            # 'use_sqlite': True,
+            }
     },
 }
 
@@ -30,6 +43,9 @@ if on_production_server:
     EMAIL_BACKEND = 'djangoappengine.mail.AsyncEmailBackend'
 else:
     EMAIL_BACKEND = 'djangoappengine.mail.EmailBackend'
+
+# Specify a queue name for the async. email backend
+EMAIL_QUEUE_NAME = 'default'
 
 PREPARE_UPLOAD_BACKEND = 'djangoappengine.storage.prepare_upload'
 SERVE_FILE_BACKEND = 'djangoappengine.storage.serve_file'

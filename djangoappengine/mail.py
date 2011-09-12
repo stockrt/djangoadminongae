@@ -1,13 +1,16 @@
 from email.MIMEBase import MIMEBase
-
 from django.core.mail.backends.base import BaseEmailBackend
 from django.core.mail import EmailMultiAlternatives
 from django.core.exceptions import ImproperlyConfigured
-
 from google.appengine.api import mail as aeemail
+from google.appengine.runtime import apiproxy_errors
 
-def _send_deferred(message):
-    message.send()
+def _send_deferred(message, fail_silently=False):
+    try:
+        message.send()
+    except (aeemail.Error, apiproxy_errors.Error):
+        if not fail_silently:
+            raise
 
 class EmailBackend(BaseEmailBackend):
     can_defer = False
@@ -61,7 +64,7 @@ class EmailBackend(BaseEmailBackend):
             return True
         try:
             message.send()
-        except aeemail.Error:
+        except (aeemail.Error, apiproxy_errors.Error):
             if not self.fail_silently:
                 raise
             return False
@@ -69,7 +72,12 @@ class EmailBackend(BaseEmailBackend):
 
     def _defer_message(self, message):
         from google.appengine.ext import deferred
-        deferred.defer(_send_deferred, message)
+        from django.conf import settings
+        queue_name = getattr(settings, 'EMAIL_QUEUE_NAME', 'default')
+        deferred.defer(_send_deferred, 
+                       message, 
+                       fail_silently=self.fail_silently,
+                       _queue=queue_name)
 
 class AsyncEmailBackend(EmailBackend):
     can_defer = True
