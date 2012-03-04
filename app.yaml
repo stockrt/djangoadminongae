@@ -1,6 +1,6 @@
 application: djangoadminongae
 version: 1
-runtime: python25
+runtime: python
 api_version: 1
 threadsafe: yes
 
