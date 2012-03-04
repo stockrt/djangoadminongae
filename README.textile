@@ -1,22 +1,22 @@
-h1. djangoappengine sample running Django's Admin Interface with permissions on Google App Engine
+h2. djangoappengine sample running Django's Admin Interface with permissions on Google App Engine
 
 No more descriptions needed.
 
-"djangoappengine":app / "django-nonrel":nonrel sample with all deps bundled within.
+"djangoappengine":https://github.com/django-nonrel/djangoappengine / "django-nonrel":https://github.com/django-nonrel/django-nonrel sample with all deps bundled within.
 
-Here you can find a "djangoappengine bootstrap script":boot to start a fresh
-project like this one but with the newest possible versions of all deps. The
-same script was used to create this sample project.
+Here you can find a "djangoappengine bootstrap script":https://github.com/stockrt/djangoappengine_bootstrap
+to start a fresh project like this one but with the newest possible versions of
+all deps. The same script was used to create this sample project.
 
 This project in action:
-"http://djangoadminongae.appspot.com/admin":sampleonline
+"http://djangoadminongae.appspot.com/admin":http://djangoadminongae.appspot.com/admin
 
 h2. Author
 
 Rogério Carvalho Schneider <stockrt@gmail.com>
+
 "http://stockrt.github.com":http://stockrt.github.com
 
-[app]http://www.allbuttonspressed.com/projects/djangoappengine
-[nonrel]http://www.allbuttonspressed.com/projects/django-nonrel
-[boot]https://github.com/stockrt/djangoappengine_bootstrap
-[sampleonline]http://djangoadminongae.appspot.com/admin
+h2. Contributors
+
+"People":https://github.com/stockrt/locknload/contributors
