@@ -26,7 +26,7 @@ class BaseDatabaseCreation(object):
         shorten identifying names.
         """
         return '%x' % (abs(hash(args)) % 4294967296L)  # 2**32
-    
+
     def db_type(self, field):
         return self._db_type(field, field.get_internal_type())
 

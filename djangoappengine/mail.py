@@ -30,6 +30,8 @@ class EmailBackend(BaseEmailBackend):
                                     body=message.body)
         if message.extra_headers.get('Reply-To', None):
             gmsg.reply_to = message.extra_headers['Reply-To']
+        if message.cc:
+            gmsg.cc = list(message.cc)
         if message.bcc:
             gmsg.bcc = list(message.bcc)
         if message.attachments:
@@ -74,8 +76,8 @@ class EmailBackend(BaseEmailBackend):
         from google.appengine.ext import deferred
         from django.conf import settings
         queue_name = getattr(settings, 'EMAIL_QUEUE_NAME', 'default')
-        deferred.defer(_send_deferred, 
-                       message, 
+        deferred.defer(_send_deferred,
+                       message,
                        fail_silently=self.fail_silently,
                        _queue=queue_name)
 

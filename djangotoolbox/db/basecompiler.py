@@ -4,7 +4,7 @@ from django.db.models.fields import NOT_PROVIDED
 from django.db.models.sql import aggregates as sqlaggregates
 from django.db.models.sql.compiler import SQLCompiler
 from django.db.models.sql.constants import LOOKUP_SEP, MULTI, SINGLE
-from django.db.models.sql.where import AND, OR, Constraint
+from django.db.models.sql.where import AND, OR
 from django.db.utils import DatabaseError, IntegrityError
 from django.utils.tree import Node
 import random
@@ -260,9 +260,10 @@ class NonrelCompiler(SQLCompiler):
             value = entity.get(field.column, NOT_PROVIDED)
             if value is NOT_PROVIDED:
                 value = field.get_default()
+            else:
+                value = self.convert_value_from_db(field.db_type(connection=self.connection), value)
             if value is None and not field.null:
                 raise IntegrityError("Non-nullable field %s can't be None!" % field.name)
-            value = self.convert_value_from_db(field.db_type(connection=self.connection), value)
             result.append(value)
         return result
 
@@ -369,10 +370,33 @@ class NonrelInsertCompiler(object):
             data[column] = value
         return self.insert(data, return_id=return_id)
 
+    def insert(self, values, return_id):
+        """
+        :param values: The model object as a list of (column, value) pairs
+        :param return_id: Whether to return the id of the newly created entity
+        """
+        raise NotImplementedError
+
 class NonrelUpdateCompiler(object):
-    def execute_sql(self, result_type=MULTI):
-        # TODO: We don't yet support QuerySet.update() in Django-nonrel
-        raise NotImplementedError('No updates')
+    def execute_sql(self, result_type):
+        values = []
+        for field, _, value in self.query.values:
+            if hasattr(value, 'prepare_database_save'):
+                value = value.prepare_database_save(field)
+            else:
+                value = field.get_db_prep_save(value, connection=self.connection)
+            value = self.convert_value_for_db(
+                field.db_type(connection=self.connection),
+                value
+            )
+            values.append((field, value))
+        return self.update(values)
+
+    def update(self, values):
+        """
+        :param values: A list of (field, new-value) pairs
+        """
+        raise NotImplementedError
 
 class NonrelDeleteCompiler(object):
     def execute_sql(self, result_type=MULTI):

@@ -24,7 +24,7 @@ class Source(models.Model):
 class ListModel(models.Model):
     integer = models.IntegerField(primary_key=True)
     floating_point = models.FloatField()
-    names = ListField(models.CharField(max_length=500))
+    names = ListField(models.CharField)
     names_with_default = ListField(models.CharField(max_length=500), default=[])
     names_nullable = ListField(models.CharField(max_length=500), null=True)
 
@@ -39,7 +39,7 @@ class SetModel(models.Model):
 supports_dicts = getattr(connections['default'].features, 'supports_dicts', False)
 if supports_dicts:
     class DictModel(models.Model):
-        dictfield = DictField(models.IntegerField())
+        dictfield = DictField(models.IntegerField)
         dictfield_nullable = DictField(null=True)
         auto_now = DictField(models.DateTimeField(auto_now=True))
 
@@ -47,13 +47,14 @@ if supports_dicts:
         simple = EmbeddedModelField('EmbeddedModel', null=True)
         simple_untyped = EmbeddedModelField(null=True)
         typed_list = ListField(EmbeddedModelField('SetModel'))
+        typed_list2 = ListField(EmbeddedModelField('EmbeddedModel'))
         untyped_list = ListField(EmbeddedModelField())
         untyped_dict = DictField(EmbeddedModelField())
         ordered_list = ListField(EmbeddedModelField(), ordering=lambda obj: obj.index)
 
     class EmbeddedModel(models.Model):
         some_relation = models.ForeignKey(DictModel, null=True)
-        someint = models.IntegerField()
+        someint = models.IntegerField(db_column='custom')
         auto_now = models.DateTimeField(auto_now=True)
         auto_now_add = models.DateTimeField(auto_now_add=True)
 
@@ -194,11 +195,14 @@ class FilterTest(TestCase):
         self.assertNotEqual(dt, None)
         item.save()
         self.assertGreater(DictModel.objects.get().auto_now['a'], dt)
-        # This shouldn't raise an error becaues the default value is
-        # an empty dict
-        DictModel().save()
+        item.delete()
 
-    @unittest.skip('Fails with GAE SDK, but passes on production')
+        # Saving empty dicts shouldn't throw errors
+        DictModel().save()
+        # Regression tests for djangoappengine issue #39
+        DictModel.add_to_class('new_dict_field', DictField())
+        DictModel.objects.get()
+
     def test_Q_objects(self):
         self.assertEquals([entity.names for entity in
             ListModel.objects.exclude(Q(names__lt='Sakura') | Q(names__gte='Sasuke'))],
@@ -226,6 +230,13 @@ class ProxyTest(TestCase):
         self.assertRaises(DatabaseError, lambda: list(ExtendedModelProxy.objects.all()))
 
 class EmbeddedModelFieldTest(TestCase):
+    def assertEqualDatetime(self, d1, d2):
+        """ Compares d1 and d2, ignoring microseconds """
+        self.assertEqual(d1.replace(microsecond=0), d2.replace(microsecond=0))
+
+    def assertNotEqualDatetime(self, d1, d2):
+        self.assertNotEqual(d1.replace(microsecond=0), d2.replace(microsecond=0))
+
     def _simple_instance(self):
         EmbeddedModelFieldModel.objects.create(simple=EmbeddedModel(someint='5'))
         return EmbeddedModelFieldModel.objects.get()
@@ -243,26 +254,71 @@ class EmbeddedModelFieldTest(TestCase):
         instance = EmbeddedModelFieldModel.objects.get()
         self.assertEqual(instance.simple.id, instance.id)
 
+    def _test_pre_save(self, instance, get_field):
+        # Make sure field.pre_save is called for embedded objects
+        from time import sleep
+        instance.save()
+        auto_now = get_field(instance).auto_now
+        auto_now_add = get_field(instance).auto_now_add
+        self.assertNotEqual(auto_now, None)
+        self.assertNotEqual(auto_now_add, None)
+
+        sleep(1) # FIXME
+        instance.save()
+        self.assertNotEqualDatetime(get_field(instance).auto_now,
+                                    get_field(instance).auto_now_add)
+
+        instance = EmbeddedModelFieldModel.objects.get()
+        instance.save()
+        # auto_now_add shouldn't have changed now, but auto_now should.
+        self.assertEqualDatetime(get_field(instance).auto_now_add, auto_now_add)
+        self.assertGreater(get_field(instance).auto_now, auto_now)
+
     def test_pre_save(self):
-        # Make sure field.pre_save is called
-        instance = self._simple_instance()
-        self.assertNotEqual(instance.simple.auto_now, None)
-        self.assertNotEqual(instance.simple.auto_now_add, None)
-        auto_now = instance.simple.auto_now
-        auto_now_add = instance.simple.auto_now_add
+        obj = EmbeddedModelFieldModel(simple=EmbeddedModel())
+        self._test_pre_save(obj, lambda instance: instance.simple)
+
+    def test_pre_save_untyped(self):
+        obj = EmbeddedModelFieldModel(simple_untyped=EmbeddedModel())
+        self._test_pre_save(obj, lambda instance: instance.simple_untyped)
+
+    def test_pre_save_in_list(self):
+        obj = EmbeddedModelFieldModel(untyped_list=[EmbeddedModel()])
+        self._test_pre_save(obj, lambda instance: instance.untyped_list[0])
+
+    def test_pre_save_in_dict(self):
+        obj = EmbeddedModelFieldModel(untyped_dict={'a': EmbeddedModel()})
+        self._test_pre_save(obj, lambda instance: instance.untyped_dict['a'])
+
+    def test_pre_save_list(self):
+        # Also make sure auto_now{,add} works for embedded object *lists*.
+        EmbeddedModelFieldModel.objects.create(typed_list2=[EmbeddedModel()])
+        instance = EmbeddedModelFieldModel.objects.get()
+
+        auto_now = instance.typed_list2[0].auto_now
+        auto_now_add = instance.typed_list2[0].auto_now_add
+        self.assertNotEqual(auto_now, None)
+        self.assertNotEqual(auto_now_add, None)
+
+        instance.typed_list2.append(EmbeddedModel())
         instance.save()
         instance = EmbeddedModelFieldModel.objects.get()
-        # auto_now_add shouldn't have changed now, but auto_now should.
-        self.assertEqual(instance.simple.auto_now_add, auto_now_add)
-        self.assertGreater(instance.simple.auto_now, auto_now)
+
+        self.assertEqualDatetime(instance.typed_list2[0].auto_now_add, auto_now_add)
+        self.assertGreater(instance.typed_list2[0].auto_now, auto_now)
+        self.assertNotEqual(instance.typed_list2[1].auto_now, None)
+        self.assertNotEqual(instance.typed_list2[1].auto_now_add, None)
 
     def test_error_messages(self):
-        for kwargs in (
-            {'simple_untyped' : 42},
-            {'simple' : 42}
+        for kwargs, expected in (
+            ({'simple' : 42}, EmbeddedModel),
+            ({'simple_untyped' : 42}, models.Model),
+            ({'typed_list': [EmbeddedModel()]}, SetModel)
         ):
-            self.assertRaisesRegexp(TypeError, "Expected instance of type",
-                                    EmbeddedModelFieldModel(**kwargs).save)
+            self.assertRaisesRegexp(
+                TypeError, "Expected instance of type %r" % expected,
+                EmbeddedModelFieldModel(**kwargs).save
+            )
 
     def test_typed_listfield(self):
         EmbeddedModelFieldModel.objects.create(
@@ -303,9 +359,11 @@ class EmbeddedModelFieldTest(TestCase):
         self.assertNotIn('some_relation', simple.__dict__)
         self.assertIsInstance(simple.__dict__['some_relation_id'], type(obj.id))
         self.assertIsInstance(simple.some_relation, DictModel)
+
 EmbeddedModelFieldTest = unittest.skipIf(
     not supports_dicts, "Backend doesn't support dicts")(
     EmbeddedModelFieldTest)
+
 
 class SignalTest(TestCase):
     def test_post_save(self):
