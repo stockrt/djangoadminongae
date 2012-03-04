@@ -26,6 +26,6 @@ cat $temp_dir/manage.py > manage.py
 cat $temp_dir/settings.py > settings.py
 cat $temp_dir/urls.py > urls.py
 
-vimdiff app.yaml /tmp/djangoappengine_bootstrap/app.yaml
-vimdiff cron.yaml /tmp/djangoappengine_bootstrap/cron.yaml
-vimdiff index.yaml /tmp/djangoappengine_bootstrap/index.yaml
+vimdiff app.yaml $temp_dir/app.yaml
+vimdiff cron.yaml $temp_dir/cron.yaml
+vimdiff index.yaml $temp_dir/index.yaml
